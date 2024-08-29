@@ -5,13 +5,12 @@ import { PointService } from './point.service';
 import { PointController } from './point.controller';
 import { ContentModule } from '../content/content.module';
 import { HttpModule } from '@nestjs/axios';
-import { JourneyModule } from 'src/journey/journey.module';
 
 @Module({
   imports: [
-    HttpModule, // Certifique-se de que HttpModule está importado aqui
-    forwardRef(() => JourneyModule),
+    HttpModule,
     MongooseModule.forFeature([{ name: 'Point', schema: PointSchema }]),
+    forwardRef(() => ContentModule),
   ],
   providers: [PointService],
   controllers: [PointController],

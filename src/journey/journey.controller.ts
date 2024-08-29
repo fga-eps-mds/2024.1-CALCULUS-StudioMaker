@@ -5,13 +5,11 @@ import {
   Body,
   Param,
   Put,
-  Req,
-  UnauthorizedException,
   Delete,
   Patch,
+  NotFoundException,
 } from '@nestjs/common';
 import { JourneyService } from './journey.service';
-import { Request } from 'express';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 
 @Controller('journeys')
@@ -19,26 +17,23 @@ export class JourneyController {
   constructor(private readonly journeyService: JourneyService) {}
 
   @Post()
-  async create(@Body() body: CreateJourneyDto, @Req() req: Request) {
-    const authHeader = req.headers.authorization as string;
-    const token = authHeader?.split(' ')[1];
-
-    if (!token) {
-      throw new UnauthorizedException('Token not found');
-    }
-
+  async create(@Body() body: CreateJourneyDto) {
     const pointId = body.pointId;
 
-    return this.journeyService.create(body, token, pointId);
+    if (!pointId) {
+      throw new NotFoundException('Point ID not provided in body');
+    }
+
+    return this.journeyService.create(body, pointId);
   }
   @Get()
   async findAll() {
     return this.journeyService.findAll();
   }
 
-  @Get('user/:id')
-  async findByUser(@Param('id') userId: string) {
-    return this.journeyService.findByUserId(userId);
+  @Get('point/:id')
+  async findByUser(@Param('id') pointId: string) {
+    return this.journeyService.findByPointId(pointId);
   }
 
   @Get(':id')
