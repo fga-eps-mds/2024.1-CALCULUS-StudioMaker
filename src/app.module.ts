@@ -6,6 +6,7 @@ import { ContentModule } from './content/content.module';
 import * as Joi from 'joi';
 import { JourneyModule } from './journey/journey.module';
 import { TrailModule } from './trail/trail.module';
+import { PointModule } from './start_point/point.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TrailModule } from './trail/trail.module';
     ContentModule,
     JourneyModule,
     TrailModule,
+    PointModule,
   ],
   controllers: [],
   providers: [],
