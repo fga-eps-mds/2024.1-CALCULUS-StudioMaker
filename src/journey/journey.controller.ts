@@ -19,10 +19,7 @@ export class JourneyController {
   constructor(private readonly journeyService: JourneyService) {}
 
   @Post()
-  async create(
-    @Body() createJourneyDto: CreateJourneyDto,
-    @Req() req: Request,
-  ) {
+  async create(@Body() body: CreateJourneyDto, @Req() req: Request) {
     const authHeader = req.headers.authorization as string;
     const token = authHeader?.split(' ')[1];
 
@@ -30,9 +27,10 @@ export class JourneyController {
       throw new UnauthorizedException('Token not found');
     }
 
-    return this.journeyService.create(createJourneyDto, token);
-  }
+    const pointId = body.pointId;
 
+    return this.journeyService.create(body, token, pointId);
+  }
   @Get()
   async findAll() {
     return this.journeyService.findAll();

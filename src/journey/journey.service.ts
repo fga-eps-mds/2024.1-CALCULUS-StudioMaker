@@ -10,6 +10,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Journey } from './journey.schema';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
+import { Point } from '../start_point/point.schema';
+import { PointService } from 'src/start_point/point.service';
 
 @Injectable()
 export class JourneyService {
@@ -17,15 +19,23 @@ export class JourneyService {
 
   constructor(
     @InjectModel('Journey') private readonly journeyModel: Model<Journey>,
+    @InjectModel('Point') private readonly pointModel: Model<Point>,
+    private readonly pointService: PointService,
+
     private readonly httpService: HttpService,
   ) {}
 
   async create(
     createJourneyDto: CreateJourneyDto,
     token: string,
+    pointId: string,
   ): Promise<Journey> {
-    const userId = await this.validateTokenAndGetUserId(token);
+    const userId = await this.pointService.validateTokenAndGetUserId(token);
 
+    const pointExist = await this.pointModel.findById(pointId).exec();
+    if (!pointExist) {
+      throw new NotFoundException(`Point with ID ${pointId} not found`);
+    }
     this.logger.log(`User ID from token: ${userId}`);
 
     if (!userId) {
@@ -34,31 +44,19 @@ export class JourneyService {
 
     const newJourney = new this.journeyModel({
       ...createJourneyDto,
+      point: pointId,
       user: userId,
     });
     const savedJourney = await newJourney.save();
 
     await this.addJourneyToUser(userId, savedJourney._id.toString());
 
-    return savedJourney;
-  }
+    await this.pointService.addJourneyToPoint(
+      pointId,
+      savedJourney._id.toString(),
+    );
 
-  async validateTokenAndGetUserId(token: string): Promise<string | null> {
-    try {
-      this.logger.log(`Validating token: ${token}`);
-      const response = await firstValueFrom(
-        this.httpService.get(`${process.env.AUTH_SERVICE_URL}/validate-token`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      );
-      this.logger.log(
-        `Token validation response: ${JSON.stringify(response.data)}`,
-      );
-      return response.data.userPayload?.id || null;
-    } catch (err) {
-      this.logger.error(`Token validation failed: ${err.message}`);
-      return null;
-    }
+    return savedJourney;
   }
 
   async addJourneyToUser(userId: string, journeyId: string): Promise<void> {

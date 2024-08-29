@@ -10,4 +10,8 @@ export class CreateJourneyDto {
   @IsOptional()
   @IsMongoId()
   user?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  pointId?: string;
 }
