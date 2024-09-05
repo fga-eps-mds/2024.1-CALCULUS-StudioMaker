@@ -3,6 +3,8 @@ import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException } from '@nestjs/common';
 import { ContentService } from 'src/content/content.service';
 import { TrailService } from 'src/trail/trail.service';
+import { Types } from 'mongoose';
+import { ContentInterface } from 'src/content/dtos/update-content-order.dto';
 
 describe('ContentService', () => {
   let service: ContentService;
@@ -15,6 +17,7 @@ describe('ContentService', () => {
     exec: jest.fn(),
     save: jest.fn(),
     create: jest.fn().mockImplementation((dto) => dto),
+    bulkWrite: jest.fn(),
   };
 
   const mockTrailModel = {
@@ -169,6 +172,46 @@ describe('ContentService', () => {
       await expect(service.deleteContent('invalid-content-id')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('updateContentOrder', () => {
+    it('should update content order for multiple contents', async () => {
+      const contents: ContentInterface[] = [
+        { _id: '605c72ef8c7e2a001f6e3e2e', order: 2 },
+        { _id: '605c72ef8c7e2a001f6e3e2f', order: 1 },
+      ];
+      const bulkWriteResult = { acknowledged: true, modifiedCount: 2 };
+
+      mockContentModel.bulkWrite.mockResolvedValue(bulkWriteResult);
+
+      const result = await service.updateContentOrder(contents);
+      expect(result).toEqual(bulkWriteResult);
+      expect(mockContentModel.bulkWrite).toHaveBeenCalledWith([
+        {
+          updateOne: {
+            filter: { _id: new Types.ObjectId('605c72ef8c7e2a001f6e3e2e') },
+            update: { $set: { order: 2 } },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: new Types.ObjectId('605c72ef8c7e2a001f6e3e2f') },
+            update: { $set: { order: 1 } },
+          },
+        },
+      ]);
+    });
+
+    it('should handle empty content list', async () => {
+      const contents: ContentInterface[] = [];
+      const bulkWriteResult = { acknowledged: true, modifiedCount: 0 };
+
+      mockContentModel.bulkWrite.mockResolvedValue(bulkWriteResult);
+
+      const result = await service.updateContentOrder(contents);
+      expect(result).toEqual(bulkWriteResult);
+      expect(mockContentModel.bulkWrite).toHaveBeenCalledWith([]);
     });
   });
 });

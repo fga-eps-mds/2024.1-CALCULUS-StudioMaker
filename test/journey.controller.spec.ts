@@ -1,22 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
-
-import { UnauthorizedException } from '@nestjs/common';
-import { Request } from 'express';
-import { JourneyService } from 'src/journey/journey.service';
+import { NotFoundException } from '@nestjs/common';
 import { JourneyController } from 'src/journey/journey.controller';
+import { JourneyService } from 'src/journey/journey.service';
 import { CreateJourneyDto } from 'src/journey/dtos/create-journey.dto';
+import { UpdateJourneysOrderDto } from 'src/journey/dtos/updateJourneyOrder';
 
 describe('JourneyController', () => {
   let controller: JourneyController;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  let service: JourneyService;
 
   const mockJourneyService = {
     create: jest.fn(),
     findAll: jest.fn(),
-    findByUserId: jest.fn(),
+    findByPointId: jest.fn(),
     findById: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
     addTrailToJourney: jest.fn(),
+    updateOrder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -31,6 +33,7 @@ describe('JourneyController', () => {
     }).compile();
 
     controller = module.get<JourneyController>(JourneyController);
+    service = module.get<JourneyService>(JourneyService);
   });
 
   it('should be defined', () => {
@@ -40,96 +43,154 @@ describe('JourneyController', () => {
   describe('create', () => {
     it('should create a journey', async () => {
       const createJourneyDto: CreateJourneyDto = {
-        title: '',
-        description: '',
+        pointId: 'point-id',
+        title: 'asd',
+        description: 'asad',
       };
-      const token = 'test-token';
-      const req = { headers: { authorization: `Bearer ${token}` } } as Request;
+      const result = { id: 'journey-id', ...createJourneyDto };
 
-      mockJourneyService.create.mockResolvedValue('some-value');
+      mockJourneyService.create.mockResolvedValue(result);
 
-      const result = await controller.create(createJourneyDto, req);
-      expect(result).toEqual('some-value');
+      expect(await controller.create(createJourneyDto)).toEqual(result);
       expect(mockJourneyService.create).toHaveBeenCalledWith(
         createJourneyDto,
-        token,
+        createJourneyDto.pointId,
       );
     });
 
-    it('should throw UnauthorizedException if token is not provided', async () => {
+    it('should throw NotFoundException if pointId is missing', async () => {
       const createJourneyDto: CreateJourneyDto = {
-        title: '',
-        description: '',
+        pointId: '',
+        title: 'asdasd',
+        description: 'asdasd',
       };
-      const req = { headers: {} } as Request;
 
-      await expect(controller.create(createJourneyDto, req)).rejects.toThrow(
-        UnauthorizedException,
+      await expect(controller.create(createJourneyDto)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });
 
   describe('findAll', () => {
     it('should return all journeys', async () => {
-      mockJourneyService.findAll.mockResolvedValue(['journey1', 'journey2']);
+      const result = [{ id: 'journey-id' }];
 
-      const result = await controller.findAll();
-      expect(result).toEqual(['journey1', 'journey2']);
+      mockJourneyService.findAll.mockResolvedValue(result);
+
+      expect(await controller.findAll()).toEqual(result);
+      expect(mockJourneyService.findAll).toHaveBeenCalled();
     });
   });
 
-  describe('findByUser', () => {
-    it('should return journeys by user id', async () => {
-      const userId = 'user-id';
-      mockJourneyService.findByUserId.mockResolvedValue(['journey1']);
+  describe('findByPointId', () => {
+    it('should return journeys by pointId', async () => {
+      const result = [{ id: 'journey-id' }];
 
-      const result = await controller.findByUser(userId);
-      expect(result).toEqual(['journey1']);
+      mockJourneyService.findByPointId.mockResolvedValue(result);
+
+      expect(await controller.findByPointId('point-id')).toEqual(result);
+      expect(mockJourneyService.findByPointId).toHaveBeenCalledWith('point-id');
     });
   });
 
   describe('findById', () => {
-    it('should return a journey by id', async () => {
-      const id = 'journey-id';
-      mockJourneyService.findById.mockResolvedValue('journey');
+    it('should return journey by id', async () => {
+      const result = { id: 'journey-id' };
 
-      const result = await controller.findById(id);
-      expect(result).toEqual('journey');
+      mockJourneyService.findById.mockResolvedValue(result);
+
+      expect(await controller.findById('journey-id')).toEqual(result);
+      expect(mockJourneyService.findById).toHaveBeenCalledWith('journey-id');
+    });
+
+    it('should throw NotFoundException if journey not found', async () => {
+      mockJourneyService.findById.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.findById('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
-    it('should update a journey', async () => {
-      const id = 'journey-id';
+    it('should update a journey and return the updated journey', async () => {
       const updateJourneyDto: CreateJourneyDto = {
-        title: '',
-        description: '',
+        pointId: 'point-id',
+        title: 'asdasd',
+        description: 'asdsad',
       };
-      mockJourneyService.update.mockResolvedValue('updated-journey');
+      const result = { id: 'journey-id', ...updateJourneyDto };
 
-      const result = await controller.update(id, updateJourneyDto);
-      expect(result).toEqual('updated-journey');
+      mockJourneyService.update.mockResolvedValue(result);
+
+      expect(await controller.update('journey-id', updateJourneyDto)).toEqual(
+        result,
+      );
+      expect(mockJourneyService.update).toHaveBeenCalledWith(
+        'journey-id',
+        updateJourneyDto,
+      );
+    });
+
+    it('should throw NotFoundException if journey not found', async () => {
+      mockJourneyService.update.mockRejectedValue(new NotFoundException());
+
+      await expect(
+        controller.update('invalid-id', {} as CreateJourneyDto),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('delete', () => {
     it('should delete a journey', async () => {
-      const id = 'journey-id';
-      mockJourneyService.delete.mockResolvedValue('deleted');
+      mockJourneyService.delete.mockResolvedValue(undefined);
 
-      const result = await controller.delete(id);
-      expect(result).toEqual('deleted');
+      await expect(controller.delete('journey-id')).resolves.not.toThrow();
+      expect(mockJourneyService.delete).toHaveBeenCalledWith('journey-id');
+    });
+
+    it('should throw NotFoundException if journey not found', async () => {
+      mockJourneyService.delete.mockRejectedValue(new NotFoundException());
+
+      await expect(controller.delete('invalid-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('addTrailToJourney', () => {
-    it('should add a trail to a journey', async () => {
-      const id = 'journey-id';
-      const trailId = 'trail-id';
-      mockJourneyService.addTrailToJourney.mockResolvedValue('trail-added');
+    it('should add a trail to the journey', async () => {
+      const result = { id: 'journey-id', trailId: 'trail-id' };
 
-      const result = await controller.addTrailToJourney(id, { trailId });
-      expect(result).toEqual('trail-added');
+      mockJourneyService.addTrailToJourney.mockResolvedValue(result);
+
+      expect(
+        await controller.addTrailToJourney('journey-id', {
+          trailId: 'trail-id',
+        }),
+      ).toEqual(result);
+      expect(mockJourneyService.addTrailToJourney).toHaveBeenCalledWith(
+        'journey-id',
+        'trail-id',
+      );
+    });
+  });
+
+  describe('updateTrailOrder', () => {
+    it('should update the order of journeys', async () => {
+      const updateJourneysOrderDto: UpdateJourneysOrderDto = {
+        journeys: [{ _id: 'journey-id', order: 1 }],
+      };
+      const result = [{ _id: 'journey-id', order: 1 }];
+
+      mockJourneyService.updateOrder.mockResolvedValue(result);
+
+      expect(await controller.updateTrailOrder(updateJourneysOrderDto)).toEqual(
+        result,
+      );
+      expect(mockJourneyService.updateOrder).toHaveBeenCalledWith(
+        updateJourneysOrderDto.journeys,
+      );
     });
   });
 });

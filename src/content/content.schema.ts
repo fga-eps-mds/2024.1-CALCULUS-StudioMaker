@@ -9,6 +9,7 @@ export const ContentSchema = new mongoose.Schema(
       ref: 'Trail',
       required: true,
     },
+    order: { type: Number, default: 0 },
   },
   { timestamps: true, collection: 'contents' },
 );

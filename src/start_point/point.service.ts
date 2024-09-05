@@ -25,8 +25,8 @@ export class PointService {
     token: string,
   ): Promise<Point> {
     const userId = await this.validateTokenAndGetUserId(token);
-
     if (!userId) {
+      this.logger.error(`Invalid token: ${token}`);
       throw new UnauthorizedException('Invalid token');
     }
 

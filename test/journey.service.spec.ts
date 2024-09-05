@@ -1,215 +1,264 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { JourneyService } from '../src/journey/journey.service';
 import { getModelToken } from '@nestjs/mongoose';
+import { NotFoundException } from '@nestjs/common';
+import { JourneyService } from 'src/journey/journey.service';
+import { PointService } from 'src/start_point/point.service';
 import { HttpService } from '@nestjs/axios';
-import { Model, Types } from 'mongoose';
-import { Journey } from '../src/journey/journey.schema';
-import { CreateJourneyDto } from '../src/journey/dtos/create-journey.dto';
-import {
-  UnauthorizedException,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
-import { of, throwError } from 'rxjs';
+import { Types } from 'mongoose';
+import { CreateJourneyDto } from 'src/journey/dtos/create-journey.dto';
+import { JourneyInterface } from 'src/journey/dtos/updateJourneyOrder';
 
 describe('JourneyService', () => {
   let service: JourneyService;
-  let model: Model<Journey>;
-
-  const mockJourney = {
-    _id: 'mockId',
-    title: 'Mock Journey',
-    description: 'Mock Description',
-    user: 'mockUserId',
-    save: jest.fn().mockResolvedValue(this), // Mock da instância
-    trails: [],
-  };
-
-  const mockJourneyList = [
-    { ...mockJourney, _id: 'mockId1' },
-    { ...mockJourney, _id: 'mockId2' },
-  ];
-
-  const mockCreateJourneyDto: CreateJourneyDto = {
-    title: 'New Journey',
-    description: 'New Journey Description',
-  };
 
   const mockJourneyModel = {
-    create: jest.fn().mockResolvedValue(mockJourney),
-    findById: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(mockJourney),
-    }),
-    find: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(mockJourneyList),
-    }),
-    findByIdAndUpdate: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(mockJourney),
-    }),
-    findByIdAndDelete: jest.fn().mockReturnValue({
-      exec: jest.fn().mockResolvedValue(mockJourney),
-    }),
-    new: jest.fn(() => mockJourney),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+    find: jest.fn(),
+    exec: jest.fn(),
+    create: jest.fn(),
+    bulkWrite: jest.fn(),
   };
 
-  const mockHttpService = {
-    get: jest.fn(),
-    patch: jest.fn().mockResolvedValue({}),
+  const mockPointModel = {
+    findById: jest.fn(),
   };
 
-  const mockLogger = {
-    log: jest.fn(),
-    error: jest.fn(),
+  const mockPointService = {
+    addJourneyToPoint: jest.fn(),
+  };
+
+  const mockHttpService = {} as HttpService;
+
+  const mockJourneyInstance = {
+    save: jest.fn(),
+    _id: 'journey-id',
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         JourneyService,
-        { provide: getModelToken('Journey'), useValue: mockJourneyModel },
-        { provide: HttpService, useValue: mockHttpService },
-        { provide: Logger, useValue: mockLogger },
+        {
+          provide: getModelToken('Journey'),
+          useValue: {
+            ...mockJourneyModel,
+            prototype: mockJourneyInstance,
+          },
+        },
+        {
+          provide: getModelToken('Point'),
+          useValue: mockPointModel,
+        },
+        {
+          provide: PointService,
+          useValue: mockPointService,
+        },
+        {
+          provide: HttpService,
+          useValue: mockHttpService,
+        },
       ],
     }).compile();
 
     service = module.get<JourneyService>(JourneyService);
-    model = module.get<Model<Journey>>(getModelToken('Journey'));
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('should throw UnauthorizedException if token is invalid', async () => {
-    jest
-      .spyOn(mockHttpService, 'get')
-      .mockReturnValueOnce(throwError(new Error('Invalid token')));
+  describe('create', () => {
+    it('should throw NotFoundException if point does not exist', async () => {
+      const createJourneyDto: CreateJourneyDto = {
+        title: 'Test Journey',
+        description: 'Test Description',
+        pointId: 'invalid-point-id',
+      };
 
-    await expect(
-      service.create(mockCreateJourneyDto, 'invalidToken'),
-    ).rejects.toThrow(UnauthorizedException);
+      mockPointModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.create(createJourneyDto, createJourneyDto.pointId),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should throw NotFoundException if journey is not found', async () => {
-    jest.spyOn(model, 'findById').mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(null),
-    } as any);
+  describe('findAll', () => {
+    it('should return all journeys', async () => {
+      const journeys = [{ _id: 'journey-id', title: 'Test Journey' }];
+      mockJourneyModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(journeys),
+      });
 
-    await expect(service.findById('invalidId')).rejects.toThrow(
-      NotFoundException,
-    );
+      const result = await service.findAll();
+      expect(result).toEqual(journeys);
+      expect(mockJourneyModel.find).toHaveBeenCalled();
+    });
   });
 
-  it('should return all journeys', async () => {
-    const result = await service.findAll();
-    expect(result).toEqual(mockJourneyList);
+  describe('findByPointId', () => {
+    it('should return journeys by point ID', async () => {
+      const journeys = [{ _id: 'journey-id', title: 'Test Journey' }];
+      mockJourneyModel.find.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(journeys),
+      });
+
+      const result = await service.findByPointId('point-id');
+      expect(result).toEqual(journeys);
+      expect(mockJourneyModel.find).toHaveBeenCalledWith({ point: 'point-id' });
+    });
   });
 
-  it('should return journeys by user ID', async () => {
-    const result = await service.findByUserId('mockUserId');
-    expect(result).toEqual(mockJourneyList);
+  describe('findById', () => {
+    it('should return journey by ID', async () => {
+      const journey = { _id: 'journey-id', title: 'Test Journey' };
+      mockJourneyModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(journey),
+      });
+
+      const result = await service.findById('journey-id');
+      expect(result).toEqual(journey);
+      expect(mockJourneyModel.findById).toHaveBeenCalledWith('journey-id');
+    });
+
+    it('should throw NotFoundException if journey does not exist', async () => {
+      mockJourneyModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(service.findById('invalid-journey-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
-  it('should update a journey', async () => {
-    const updatedJourneyDto: CreateJourneyDto = {
-      title: 'Updated Title',
-      description: 'Updated Description',
-    };
+  describe('update', () => {
+    it('should update and return the journey', async () => {
+      const updateJourneyDto: CreateJourneyDto = {
+        title: 'Updated Journey',
+        description: 'asdasdad',
+      };
+      const updatedJourney = { _id: 'journey-id', ...updateJourneyDto };
 
-    const result = await service.update('mockId', updatedJourneyDto);
-    expect(result).toEqual(mockJourney);
-    expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
-      'mockId',
-      updatedJourneyDto,
-      { new: true },
-    );
+      mockJourneyModel.findByIdAndUpdate.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(updatedJourney),
+      });
+
+      const result = await service.update('journey-id', updateJourneyDto);
+      expect(result).toEqual(updatedJourney);
+      expect(mockJourneyModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'journey-id',
+        updateJourneyDto,
+        { new: true },
+      );
+    });
+
+    it('should throw NotFoundException if journey does not exist', async () => {
+      mockJourneyModel.findByIdAndUpdate.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.update('invalid-journey-id', {
+          title: 'Updated Journey',
+          description: 'asdadsa',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should delete a journey', async () => {
-    const result = await service.delete('mockId');
-    expect(result).toEqual(mockJourney);
-    expect(model.findByIdAndDelete).toHaveBeenCalledWith('mockId');
+  describe('delete', () => {
+    it('should delete and return the journey', async () => {
+      const journey = { _id: 'journey-id' };
+      mockJourneyModel.findByIdAndDelete.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(journey),
+      });
+
+      const result = await service.delete('journey-id');
+      expect(result).toEqual(journey);
+      expect(mockJourneyModel.findByIdAndDelete).toHaveBeenCalledWith(
+        'journey-id',
+      );
+    });
+
+    it('should throw NotFoundException if journey does not exist', async () => {
+      mockJourneyModel.findByIdAndDelete.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(service.delete('invalid-journey-id')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
-  it('should throw NotFoundException if journey is not found when adding a trail', async () => {
-    jest.spyOn(model, 'findById').mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(null),
-    } as any);
+  describe('addTrailToJourney', () => {
+    describe('addTrailToJourney', () => {
+      it('should throw NotFoundException if journey does not exist', async () => {
+        mockJourneyModel.findById.mockReturnValueOnce({
+          exec: jest.fn().mockResolvedValue(null),
+        });
 
-    await expect(
-      service.addTrailToJourney('invalidId', 'mockTrailId'),
-    ).rejects.toThrow(NotFoundException);
+        const invalidTrailId = new Types.ObjectId().toHexString();
+
+        await expect(
+          service.addTrailToJourney('invalid-journey-id', invalidTrailId),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    it('should throw NotFoundException if journey does not exist', async () => {
+      mockJourneyModel.findById.mockReturnValueOnce({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.addTrailToJourney('invalid-journey-id', 'trail-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should return user id when token is valid', async () => {
-    const token = 'validToken';
-    const mockResponse = { data: { userPayload: { id: 'userId123' } } };
+  describe('updateOrder', () => {
+    it('should update journey order for multiple journeys', async () => {
+      const journeys: JourneyInterface[] = [
+        { _id: '605c72ef8c7e2a001f6e3e2e', order: 2 },
+        { _id: '605c72ef8c7e2a001f6e3e2f', order: 1 },
+      ];
+      const bulkWriteResult = { acknowledged: true, modifiedCount: 2 };
 
-    jest.spyOn(mockHttpService, 'get').mockReturnValueOnce(of(mockResponse));
+      mockJourneyModel.bulkWrite.mockResolvedValue(bulkWriteResult);
 
-    const result = await service.validateTokenAndGetUserId(token);
+      const result = await service.updateOrder(journeys);
+      expect(result).toEqual(bulkWriteResult);
+      expect(mockJourneyModel.bulkWrite).toHaveBeenCalledWith([
+        {
+          updateOne: {
+            filter: { _id: new Types.ObjectId('605c72ef8c7e2a001f6e3e2e') },
+            update: { $set: { order: 2 } },
+          },
+        },
+        {
+          updateOne: {
+            filter: { _id: new Types.ObjectId('605c72ef8c7e2a001f6e3e2f') },
+            update: { $set: { order: 1 } },
+          },
+        },
+      ]);
+    });
 
-    expect(result).toBe('userId123');
-  });
+    it('should handle empty journey list', async () => {
+      const journeys: JourneyInterface[] = [];
+      const bulkWriteResult = { acknowledged: true, modifiedCount: 0 };
 
-  it('should add a trail to the journey and return the updated journey', async () => {
-    const journeyId = '605c72efc1d6f812a8e90b7a'; // Use um ObjectId válido
-    const trailId = '605c72efc1d6f812a8e90b7b'; // Use um ObjectId válido
+      mockJourneyModel.bulkWrite.mockResolvedValue(bulkWriteResult);
 
-    // Mock da jornada atual
-    const mockJourneyWithTrail = {
-      ...mockJourney,
-      trails: [new Types.ObjectId(trailId)],
-    };
-
-    jest.spyOn(model, 'findById').mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(mockJourney),
-    } as any);
-    jest
-      .spyOn(mockJourney, 'save')
-      .mockResolvedValue(mockJourneyWithTrail as any);
-
-    const result = await service.addTrailToJourney(journeyId, trailId);
-
-    expect(result).toEqual(mockJourneyWithTrail);
-    expect(model.findById).toHaveBeenCalledWith(journeyId);
-    expect(mockJourney.save).toHaveBeenCalled();
-  });
-
-  it('should throw NotFoundException if journey is not found', async () => {
-    const journeyId = 'invalidJourneyId';
-    const trailId = 'mockTrailId';
-
-    jest.spyOn(model, 'findById').mockReturnValueOnce({
-      exec: jest.fn().mockResolvedValue(null),
-    } as any);
-
-    await expect(service.addTrailToJourney(journeyId, trailId)).rejects.toThrow(
-      NotFoundException,
-    );
-  });
-
-  it('should return null when token is invalid', async () => {
-    const token = 'invalidToken';
-    const mockError = new Error('Token invalid');
-
-    jest
-      .spyOn(mockHttpService, 'get')
-      .mockReturnValueOnce(throwError(mockError));
-
-    const result = await service.validateTokenAndGetUserId(token);
-
-    expect(result).toBeNull();
-  });
-
-  it('should handle error when adding journey to uset', async () => {
-    const userId = '605c72efc1d6f812a8e90b7a';
-    const journeyId = '605c72efc1d6f812a8e90b7b';
-
-    jest.spyOn(mockLogger, 'error').mockImplementation(() => {});
-
-    await expect(service.addJourneyToUser(userId, journeyId)).rejects.toThrow(
-      NotFoundException,
-    );
+      const result = await service.updateOrder(journeys);
+      expect(result).toEqual(bulkWriteResult);
+      expect(mockJourneyModel.bulkWrite).toHaveBeenCalledWith([]);
+    });
   });
 });

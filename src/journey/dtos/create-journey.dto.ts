@@ -5,6 +5,10 @@ export class CreateJourneyDto {
   title: string;
 
   @IsOptional()
+  @IsString()
+  description: string;
+
+  @IsOptional()
   @IsMongoId()
   pointId?: string;
 }

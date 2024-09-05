@@ -14,6 +14,7 @@ describe('TrailController', () => {
     addContentToTrail: jest.fn(),
     removeContentFromTrail: jest.fn(),
     deleteTrail: jest.fn(),
+    updateTrailOrder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -130,6 +131,22 @@ describe('TrailController', () => {
       const result = await controller.deleteTrail(trailId);
       expect(result).toEqual({ message: 'Trail deleted successfully' });
       expect(mockTrailService.deleteTrail).toHaveBeenCalledWith(trailId);
+    });
+  });
+
+  describe('updateTrailOrder', () => {
+    it('should update trail orders in bulk', async () => {
+      const trails = [
+        { _id: '1', order: 2 },
+        { _id: '2', order: 1 },
+      ];
+      const bulkWriteResult = { acknowledged: true, modifiedCount: 2 };
+
+      mockTrailService.updateTrailOrder.mockResolvedValue(bulkWriteResult);
+
+      const result = await controller.updateTrailOrder({ trails });
+      expect(result).toEqual(bulkWriteResult);
+      expect(mockTrailService.updateTrailOrder).toHaveBeenCalledWith(trails);
     });
   });
 });

@@ -6,6 +6,7 @@ import { Journey } from './journey.schema';
 import { CreateJourneyDto } from './dtos/create-journey.dto';
 import { Point } from '../start_point/point.schema';
 import { PointService } from 'src/start_point/point.service';
+import { JourneyInterface } from './dtos/updateJourneyOrder';
 
 @Injectable()
 export class JourneyService {
@@ -15,7 +16,6 @@ export class JourneyService {
     @InjectModel('Journey') private readonly journeyModel: Model<Journey>,
     @InjectModel('Point') private readonly pointModel: Model<Point>,
     private readonly pointService: PointService,
-
     private readonly httpService: HttpService,
   ) {}
 
@@ -31,7 +31,10 @@ export class JourneyService {
     const newJourney = new this.journeyModel({
       ...createJourneyDto,
       point: pointId,
+      order: pointExist.journeys.length + 1,
+
     });
+
     const savedJourney = await newJourney.save();
 
     await this.pointService.addJourneyToPoint(
@@ -98,5 +101,18 @@ export class JourneyService {
     journey.trails.push(objectId);
 
     return journey.save();
+  }
+
+  async updateOrder(journeys: JourneyInterface[]) {
+    const bulkOperations = journeys.map((trail) => ({
+      updateOne: {
+        filter: { _id: new Types.ObjectId(trail._id) },
+        update: { $set: { order: trail.order } },
+      },
+    }));
+
+    const result = await this.journeyModel.bulkWrite(bulkOperations);
+    console.log(`Bulk update result: ${JSON.stringify(result)}`);
+    return result;
   }
 }

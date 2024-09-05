@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-
 import { NotFoundException } from '@nestjs/common';
 import { ContentController } from 'src/content/content.controller';
 import { ContentService } from 'src/content/content.service';
 import { Content } from 'src/content/content.schema';
+import { UpdateContentsOrderDto } from 'src/content/dtos/update-content-order.dto';
 
 describe('ContentController', () => {
   let controller: ContentController;
@@ -14,6 +14,7 @@ describe('ContentController', () => {
     findAllContents: jest.fn(),
     updateContent: jest.fn(),
     deleteContent: jest.fn(),
+    updateContentOrder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -158,6 +159,26 @@ describe('ContentController', () => {
 
       await expect(controller.deleteContent('invalid-id')).rejects.toThrow(
         NotFoundException,
+      );
+    });
+  });
+
+  describe('updateContentOrder', () => {
+    it('should update content order', async () => {
+      const contentsDto = {
+        contents: [
+          { _id: 'content-id-1', order: 2 },
+          { _id: 'content-id-2', order: 1 },
+        ],
+      } as UpdateContentsOrderDto;
+      const updateResult = { acknowledged: true, modifiedCount: 2 };
+
+      mockContentService.updateContentOrder.mockResolvedValue(updateResult);
+
+      const result = await controller.updateTrailOrder(contentsDto);
+      expect(result).toEqual(updateResult);
+      expect(mockContentService.updateContentOrder).toHaveBeenCalledWith(
+        contentsDto.contents,
       );
     });
   });
